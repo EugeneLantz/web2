@@ -1,0 +1,59 @@
+services:
+  web2_app:
+    build: ./app
+    container_name: web2_app
+    env_file: .env
+    restart: unless-stopped
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      serverfarm:
+        # Kalau kamu butuh IP statik di subnet server farm, aktifkan:
+        # ipv4_address: 172.16.10.3
+
+  web2_nginx:
+    image: nginx:alpine
+    container_name: web2_nginx
+    depends_on:
+      - web2_app
+    restart: unless-stopped
+    ports:
+      - "8082:80"   # WEB2 listen 8082 di host (bisa kamu ganti jadi 80 kalau khusus server)
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      serverfarm:
+        # ipv4_address: 172.16.10.4
+
+  # OPSIONAL database lokal di WEB2 (hapus kalau DB ada di server lain)
+  web2_db:
+    image: mariadb:11
+    container_name: web2_db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MARIADB_DATABASE: ${DB_NAME}
+      MARIADB_USER: ${DB_USER}
+      MARIADB_PASSWORD: ${DB_PASS}
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    volumes:
+      - web2_db_data:/var/lib/mysql
+    networks:
+      serverfarm:
+
+networks:
+  serverfarm:
+    driver: bridge
+    # Kalau kamu pakai subnet server-farm tertentu, aktifkan ipam:
+    # ipam:
+    #   config:
+    #     - subnet: 172.16.10.0/28
+    #       gateway: 172.16.10.1
+
+volumes:
+  web2_db_data:
